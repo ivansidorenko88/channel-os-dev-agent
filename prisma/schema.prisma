@@ -1,0 +1,37 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum DraftStatus {
+  DRAFT
+  APPROVED
+  PUBLISHED
+  REJECTED
+}
+
+enum ContentType {
+  MANUAL
+  NEWS
+  HUMOR
+  DEVLOG
+}
+
+model ContentDraft {
+  id          Int         @id @default(autoincrement())
+  type        ContentType @default(MANUAL)
+  topic       String
+  title       String
+  body        String
+  visualIdea  String?
+  status      DraftStatus @default(DRAFT)
+  telegramMessageId Int?
+  publishedMessageId Int?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  publishedAt DateTime?
+}
