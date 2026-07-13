@@ -5,10 +5,7 @@ dist/
 !.env.example
 coverage/
 *.log
-
 prisma/dev.db
-
 .vscode/
 .idea/
-
 .DS_Store

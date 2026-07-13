@@ -1,10 +1,41 @@
-const { spawnSync } = require("node:child_process");
+const { spawnSync } = require('node:child_process');
+
+const REQUIRED_SCHEMA = 'channel_os_dev_agent';
+
+function forceDatabaseSchema(rawUrl) {
+  if (!rawUrl) {
+    console.error('DATABASE_URL is not configured in BotHost environment variables.');
+    process.exit(1);
+  }
+
+  let url;
+  try {
+    url = new URL(rawUrl);
+  } catch {
+    console.error('DATABASE_URL has an invalid PostgreSQL URL format.');
+    process.exit(1);
+  }
+
+  url.searchParams.set('schema', REQUIRED_SCHEMA);
+  return url.toString();
+}
+
+const databaseUrl = forceDatabaseSchema(process.env.DATABASE_URL);
+const childEnv = {
+  ...process.env,
+  DATABASE_URL: databaseUrl,
+  NODE_ENV: process.env.NODE_ENV || 'production'
+};
+
+console.log(`Database schema forced to: ${REQUIRED_SCHEMA}`);
 
 function run(command, args) {
-  console.log(`\n> ${command} ${args.join(" ")}`);
+  console.log(`\n> ${command} ${args.join(' ')}`);
+
   const result = spawnSync(command, args, {
-    stdio: "inherit",
-    shell: process.platform === "win32"
+    stdio: 'inherit',
+    shell: process.platform === 'win32',
+    env: childEnv
   });
 
   if (result.error) {
@@ -17,37 +48,8 @@ function run(command, args) {
   }
 }
 
-function validateDatabaseUrl() {
-  const databaseUrl = process.env.DATABASE_URL;
+const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
-  if (!databaseUrl) {
-    console.error("DATABASE_URL is not configured in BotHost environment variables.");
-    process.exit(1);
-  }
-
-  let url;
-  try {
-    url = new URL(databaseUrl);
-  } catch {
-    console.error("DATABASE_URL has an invalid format.");
-    process.exit(1);
-  }
-
-  const schema = url.searchParams.get("schema");
-  if (schema !== "channel_os_dev_agent") {
-    console.error(
-      'DATABASE_URL must end with "?schema=channel_os_dev_agent". ' +
-      `Current schema: ${schema ?? "public"}`
-    );
-    process.exit(1);
-  }
-
-  console.log(`Database schema: ${schema}`);
-}
-
-validateDatabaseUrl();
-
-const npx = process.platform === "win32" ? "npx.cmd" : "npx";
-run(npx, ["prisma", "generate", "--schema=prisma/schema.prisma"]);
-run(npx, ["prisma", "db", "push", "--schema=prisma/schema.prisma"]);
-run(npx, ["tsx", "src/index.ts"]);
+run(npx, ['prisma', 'generate', '--schema=prisma/schema.prisma']);
+run(npx, ['prisma', 'db', 'push', '--schema=prisma/schema.prisma']);
+run(npx, ['tsx', 'src/index.ts']);

@@ -49,11 +49,3 @@ docker compose up --build -d
 ## Ограничение v0.1
 
 Кнопка «Новости» пока не выполняет веб-поиск. Она создаёт безопасный шаблон без выдуманных фактов. Сбор, проверка и ранжирование свежих новостей добавляются в v0.2.
-
-## BotHost deployment
-
-1. Do not upload `.env` to GitHub. Configure all secrets in the BotHost environment variables panel.
-2. Set the startup file to `start.js`.
-3. `DATABASE_URL` must use the dedicated schema:
-   `?schema=channel_os_dev_agent`
-4. Required variables are listed in `.env.example`.
