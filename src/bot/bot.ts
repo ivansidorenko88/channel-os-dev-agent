@@ -21,21 +21,45 @@ function escapeHtml(value: string): string {
 }
 
 async function createAndShowDraft(ctx: any, topic: string, type: ContentType = ContentType.MANUAL) {
-  await ctx.reply("Генерирую черновик…");
-  const generated = await generatePost(topic);
-  const draft = await prisma.contentDraft.create({
-    data: { type, topic, ...generated }
-  });
+  const loadingMessage = await ctx.reply("🤖 Генерирую черновик…");
 
-  const message = await ctx.reply(
-    `${formatPost(draft.title, draft.body)}\n\n<b>Идея визуала:</b> ${escapeHtml(draft.visualIdea ?? "—")}`,
-    { parse_mode: "HTML", ...draftKeyboard(draft.id) }
-  );
+  try {
+    const generated = await generatePost(topic);
+    const draft = await prisma.contentDraft.create({
+      data: { type, topic, ...generated }
+    });
 
-  await prisma.contentDraft.update({
-    where: { id: draft.id },
-    data: { telegramMessageId: message.message_id }
-  });
+    const message = await ctx.reply(
+      `${formatPost(draft.title, draft.body)}\n\n<b>Идея визуала:</b> ${escapeHtml(draft.visualIdea ?? "—")}`,
+      { parse_mode: "HTML", ...draftKeyboard(draft.id) }
+    );
+
+    await prisma.contentDraft.update({
+      where: { id: draft.id },
+      data: { telegramMessageId: message.message_id }
+    });
+
+    await ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      "✅ Черновик создан."
+    );
+  } catch (error) {
+    console.error("Ошибка генерации публикации:", error);
+
+    await ctx.telegram.editMessageText(
+      ctx.chat.id,
+      loadingMessage.message_id,
+      undefined,
+      [
+        "⚠️ Gemini сейчас временно недоступен.",
+        "",
+        "Агент выполнил повторные попытки и попробовал резервную модель.",
+        "Повтори генерацию позже."
+      ].join("\n")
+    );
+  }
 }
 
 bot.use(async (ctx, next) => {

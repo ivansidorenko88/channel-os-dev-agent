@@ -11,9 +11,27 @@ Channel OS — инструмент для владельцев Telegram-кан�
 Текст должен быть пригоден для публикации в Telegram и не должен содержать Markdown-таблиц.
 Верни заголовок, полный текст поста и краткую идею изображения.`;
 
-export async function generatePost(topic: string): Promise<GeneratedPost> {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getStatus(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null || !("status" in error)) {
+    return undefined;
+  }
+
+  const status = (error as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
+}
+
+function isRetryable(error: unknown): boolean {
+  const status = getStatus(error);
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
+async function requestPost(model: string, topic: string): Promise<GeneratedPost> {
   const response = await ai.models.generateContent({
-    model: env.GEMINI_MODEL,
+    model,
     contents: `Создай публикацию для Channel OS Dev на тему: ${topic}`,
     config: {
       systemInstruction,
@@ -30,6 +48,53 @@ export async function generatePost(topic: string): Promise<GeneratedPost> {
     }
   });
 
-  if (!response.text) throw new Error("Gemini вернул пустой ответ");
-  return JSON.parse(response.text) as GeneratedPost;
+  if (!response.text) {
+    throw new Error("Gemini вернул пустой ответ");
+  }
+
+  try {
+    return JSON.parse(response.text) as GeneratedPost;
+  } catch {
+    throw new Error("Gemini вернул некорректный JSON");
+  }
+}
+
+async function generateWithRetry(model: string, topic: string): Promise<GeneratedPost> {
+  let lastError: unknown;
+
+  for (let attempt = 1; attempt <= env.GEMINI_MAX_RETRIES; attempt += 1) {
+    try {
+      return await requestPost(model, topic);
+    } catch (error) {
+      lastError = error;
+
+      if (!isRetryable(error) || attempt === env.GEMINI_MAX_RETRIES) {
+        break;
+      }
+
+      const delay = 1_500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 700);
+      console.warn(
+        `Gemini ${model} временно недоступен. Попытка ${attempt}/${env.GEMINI_MAX_RETRIES}. Повтор через ${delay} мс.`
+      );
+      await sleep(delay);
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error("Неизвестная ошибка Gemini");
+}
+
+export async function generatePost(topic: string): Promise<GeneratedPost> {
+  try {
+    return await generateWithRetry(env.GEMINI_MODEL, topic);
+  } catch (primaryError) {
+    if (!isRetryable(primaryError) || env.GEMINI_FALLBACK_MODEL === env.GEMINI_MODEL) {
+      throw primaryError;
+    }
+
+    console.warn(
+      `Основная модель ${env.GEMINI_MODEL} недоступна. Переключаюсь на ${env.GEMINI_FALLBACK_MODEL}.`
+    );
+
+    return generateWithRetry(env.GEMINI_FALLBACK_MODEL, topic);
+  }
 }
