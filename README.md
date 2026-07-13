@@ -66,3 +66,12 @@ npm start
 ## BotHost fix v0.1.3
 
 `postinstall` удалён намеренно. Некоторые сборщики BotHost устанавливают npm-зависимости до копирования папки `prisma`, поэтому генерация Prisma во время `npm install` завершалась ошибкой. Теперь `prisma generate` и `prisma db push` выполняются в `npm start`, когда весь проект уже находится в контейнере.
+
+## BotHost startup file
+Set the startup file in BotHost to:
+
+```text
+start.js
+```
+
+Do not paste a shell command into the startup-file field. BotHost runs that field as `node <file>`.

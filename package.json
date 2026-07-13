@@ -1,12 +1,12 @@
 {
   "name": "channel-os-dev-agent",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Standalone AI content agent for the Channel OS Dev Telegram channel",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "prisma generate --schema=prisma/schema.prisma && prisma db push --schema=prisma/schema.prisma && tsx src/index.ts",
+    "start": "node start.js",
     "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
     "prisma:push": "prisma db push --schema=prisma/schema.prisma"
   },
