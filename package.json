@@ -1,6 +1,6 @@
 {
   "name": "channel-os-dev-agent",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Standalone AI content agent for the Channel OS Dev Telegram channel",
   "scripts": {

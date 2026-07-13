@@ -2,25 +2,64 @@ const { spawnSync } = require('node:child_process');
 
 const REQUIRED_SCHEMA = 'channel_os_dev_agent';
 
-function forceDatabaseSchema(rawUrl) {
-  if (!rawUrl) {
-    console.error('DATABASE_URL is not configured in BotHost environment variables.');
-    process.exit(1);
+function sanitizeDatabaseUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('DATABASE_URL is not configured in BotHost environment variables.');
   }
 
-  let url;
-  try {
-    url = new URL(rawUrl);
-  } catch {
-    console.error('DATABASE_URL has an invalid PostgreSQL URL format.');
-    process.exit(1);
+  let cleaned = value.trim();
+
+  // BotHost users sometimes paste DATABASE_URL=... into the value field.
+  cleaned = cleaned.replace(/^DATABASE_URL\s*=\s*/i, '').trim();
+
+  // Remove one pair of wrapping quotes copied from .env files.
+  if (
+    (cleaned.startsWith('"') && cleaned.endsWith('"')) ||
+    (cleaned.startsWith("'") && cleaned.endsWith("'"))
+  ) {
+    cleaned = cleaned.slice(1, -1).trim();
   }
 
-  url.searchParams.set('schema', REQUIRED_SCHEMA);
-  return url.toString();
+  // Remove accidental line breaks and surrounding whitespace.
+  cleaned = cleaned.replace(/[\r\n]/g, '').trim();
+
+  // If extra text was pasted before the URL, keep the PostgreSQL URL itself.
+  const protocolIndex = cleaned.search(/postgres(?:ql)?:\/\//i);
+  if (protocolIndex > 0) {
+    cleaned = cleaned.slice(protocolIndex);
+  }
+
+  if (!/^postgres(?:ql)?:\/\//i.test(cleaned)) {
+    throw new Error(
+      'DATABASE_URL has an invalid format. In BotHost, enter only the value beginning with postgresql:// — without DATABASE_URL= and without quotes.'
+    );
+  }
+
+  return cleaned;
 }
 
-const databaseUrl = forceDatabaseSchema(process.env.DATABASE_URL);
+function forceDatabaseSchema(rawValue) {
+  const cleaned = sanitizeDatabaseUrl(rawValue);
+
+  try {
+    const url = new URL(cleaned);
+    url.searchParams.set('schema', REQUIRED_SCHEMA);
+    return url.toString();
+  } catch (error) {
+    throw new Error(
+      `DATABASE_URL could not be parsed as a PostgreSQL URL: ${error instanceof Error ? error.message : String(error)}`
+    );
+  }
+}
+
+let databaseUrl;
+try {
+  databaseUrl = forceDatabaseSchema(process.env.DATABASE_URL);
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  process.exit(1);
+}
+
 const childEnv = {
   ...process.env,
   DATABASE_URL: databaseUrl,
