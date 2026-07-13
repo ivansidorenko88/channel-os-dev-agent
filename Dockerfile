@@ -1,17 +1,16 @@
-FROM node:20-alpine AS builder
-WORKDIR /app
-COPY package*.json ./
-COPY prisma ./prisma
-RUN npm ci
-COPY tsconfig.json ./
-COPY src ./src
-RUN npm run build
-
 FROM node:20-alpine
+
 WORKDIR /app
 ENV NODE_ENV=production
+
+# Dependencies are installed first. Prisma generation is intentionally NOT
+# executed during npm install because some hosts copy source files later.
 COPY package*.json ./
+RUN npm ci --omit=dev || npm install --omit=dev
+
+# Copy runtime sources and Prisma schema before npm start.
 COPY prisma ./prisma
-RUN npm ci --omit=dev
-COPY --from=builder /app/dist ./dist
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+COPY src ./src
+COPY tsconfig.json ./tsconfig.json
+
+CMD ["npm", "start"]
