@@ -21,7 +21,7 @@ function escapeHtml(value: string): string {
 }
 
 async function createAndShowDraft(ctx: any, topic: string, type: ContentType = ContentType.MANUAL) {
-  const loadingMessage = await ctx.reply("🤖 Генерирую черновик…");
+  const loading = await ctx.reply("🤖 Генерирую черновик…");
 
   try {
     const generated = await generatePost(topic);
@@ -39,25 +39,14 @@ async function createAndShowDraft(ctx: any, topic: string, type: ContentType = C
       data: { telegramMessageId: message.message_id }
     });
 
-    await ctx.telegram.editMessageText(
-      ctx.chat.id,
-      loadingMessage.message_id,
-      undefined,
-      "✅ Черновик создан."
-    );
+    await ctx.telegram.editMessageText(ctx.chat.id, loading.message_id, undefined, "✅ Черновик создан.");
   } catch (error) {
     console.error("Ошибка генерации публикации:", error);
-
     await ctx.telegram.editMessageText(
       ctx.chat.id,
-      loadingMessage.message_id,
+      loading.message_id,
       undefined,
-      [
-        "⚠️ Gemini сейчас временно недоступен.",
-        "",
-        "Агент выполнил повторные попытки и попробовал резервную модель.",
-        "Повтори генерацию позже."
-      ].join("\n")
+      "⚠️ Gemini временно недоступен. Агент выполнил повторные попытки и попробовал резервную модель. Повтори запрос позже."
     );
   }
 }

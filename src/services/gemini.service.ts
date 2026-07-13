@@ -16,17 +16,15 @@ function sleep(ms: number): Promise<void> {
 }
 
 function getStatus(error: unknown): number | undefined {
-  if (typeof error !== "object" || error === null || !("status" in error)) {
-    return undefined;
+  if (typeof error === "object" && error !== null && "status" in error) {
+    const status = (error as { status?: unknown }).status;
+    return typeof status === "number" ? status : undefined;
   }
-
-  const status = (error as { status?: unknown }).status;
-  return typeof status === "number" ? status : undefined;
+  return undefined;
 }
 
 function isRetryable(error: unknown): boolean {
-  const status = getStatus(error);
-  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+  return [429, 500, 502, 503, 504].includes(getStatus(error) ?? 0);
 }
 
 async function requestPost(model: string, topic: string): Promise<GeneratedPost> {
@@ -48,9 +46,7 @@ async function requestPost(model: string, topic: string): Promise<GeneratedPost>
     }
   });
 
-  if (!response.text) {
-    throw new Error("Gemini вернул пустой ответ");
-  }
+  if (!response.text) throw new Error("Gemini вернул пустой ответ");
 
   try {
     return JSON.parse(response.text) as GeneratedPost;
@@ -67,34 +63,23 @@ async function generateWithRetry(model: string, topic: string): Promise<Generate
       return await requestPost(model, topic);
     } catch (error) {
       lastError = error;
+      if (!isRetryable(error) || attempt === env.GEMINI_MAX_RETRIES) break;
 
-      if (!isRetryable(error) || attempt === env.GEMINI_MAX_RETRIES) {
-        break;
-      }
-
-      const delay = 1_500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 700);
-      console.warn(
-        `Gemini ${model} временно недоступен. Попытка ${attempt}/${env.GEMINI_MAX_RETRIES}. Повтор через ${delay} мс.`
-      );
+      const delay = 1500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 700);
+      console.warn(`Gemini ${model} недоступен. Попытка ${attempt}/${env.GEMINI_MAX_RETRIES}; повтор через ${delay} мс.`);
       await sleep(delay);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Неизвестная ошибка Gemini");
+  throw lastError;
 }
 
 export async function generatePost(topic: string): Promise<GeneratedPost> {
   try {
     return await generateWithRetry(env.GEMINI_MODEL, topic);
-  } catch (primaryError) {
-    if (!isRetryable(primaryError) || env.GEMINI_FALLBACK_MODEL === env.GEMINI_MODEL) {
-      throw primaryError;
-    }
-
-    console.warn(
-      `Основная модель ${env.GEMINI_MODEL} недоступна. Переключаюсь на ${env.GEMINI_FALLBACK_MODEL}.`
-    );
-
+  } catch (error) {
+    if (!isRetryable(error) || env.GEMINI_FALLBACK_MODEL === env.GEMINI_MODEL) throw error;
+    console.warn(`Переключение с ${env.GEMINI_MODEL} на ${env.GEMINI_FALLBACK_MODEL}.`);
     return generateWithRetry(env.GEMINI_FALLBACK_MODEL, topic);
   }
 }

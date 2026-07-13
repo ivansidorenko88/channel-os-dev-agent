@@ -1,27 +1,30 @@
 {
   "name": "channel-os-dev-agent",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "private": true,
   "description": "Standalone AI content agent for the Channel OS Dev Telegram channel",
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
-    "postinstall": "prisma generate"
+    "start": "prisma db push --schema=prisma/schema.prisma && tsx src/index.ts",
+    "prisma:generate": "prisma generate --schema=prisma/schema.prisma",
+    "prisma:push": "prisma db push --schema=prisma/schema.prisma",
+    "postinstall": "prisma generate --schema=prisma/schema.prisma"
   },
   "dependencies": {
     "@google/genai": "^1.30.0",
     "@prisma/client": "^6.19.0",
     "dotenv": "^17.2.3",
     "telegraf": "^4.16.3",
-    "zod": "^4.1.12"
+    "zod": "^4.1.12",
+    "prisma": "^6.19.0",
+    "tsx": "^4.20.6"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "prisma": "^6.19.0",
-    "tsx": "^4.20.6",
     "typescript": "^5.9.3"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma"
   }
 }
