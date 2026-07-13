@@ -50,28 +50,10 @@ docker compose up --build -d
 
 Кнопка «Новости» пока не выполняет веб-поиск. Она создаёт безопасный шаблон без выдуманных фактов. Сбор, проверка и ранжирование свежих новостей добавляются в v0.2.
 
-## Деплой на BotHost
+## BotHost deployment
 
-BotHost устанавливает production-зависимости, поэтому `prisma` и `tsx` находятся в `dependencies`.
-Команда запуска:
-
-```bash
-npm start
-```
-
-При старте агент автоматически выполняет `prisma db push`, затем запускает `src/index.ts` через `tsx`.
-Файл `prisma/schema.prisma` должен находиться в корне репозитория в папке `prisma`.
-
-
-## BotHost fix v0.1.3
-
-`postinstall` удалён намеренно. Некоторые сборщики BotHost устанавливают npm-зависимости до копирования папки `prisma`, поэтому генерация Prisma во время `npm install` завершалась ошибкой. Теперь `prisma generate` и `prisma db push` выполняются в `npm start`, когда весь проект уже находится в контейнере.
-
-## BotHost startup file
-Set the startup file in BotHost to:
-
-```text
-start.js
-```
-
-Do not paste a shell command into the startup-file field. BotHost runs that field as `node <file>`.
+1. Do not upload `.env` to GitHub. Configure all secrets in the BotHost environment variables panel.
+2. Set the startup file to `start.js`.
+3. `DATABASE_URL` must use the dedicated schema:
+   `?schema=channel_os_dev_agent`
+4. Required variables are listed in `.env.example`.
