@@ -1,6 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { env } from "../config/env.js";
 import type { GeneratedPost } from "../types/content.js";
+import { generatePostWithDeepSeek } from "./deepseek.service.js";
 
 const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
 
@@ -23,8 +24,26 @@ function getStatus(error: unknown): number | undefined {
   return undefined;
 }
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
 function isRetryable(error: unknown): boolean {
   return [429, 500, 502, 503, 504].includes(getStatus(error) ?? 0);
+}
+
+function canSwitchModel(error: unknown): boolean {
+  const status = getStatus(error);
+  return isRetryable(error) || status === 404;
+}
+
+function getModelChain(): string[] {
+  return [
+    env.GEMINI_MODEL,
+    env.GEMINI_FALLBACK_MODEL,
+    env.GEMINI_SECOND_FALLBACK_MODEL
+  ].filter((model, index, models) => model.length > 0 && models.indexOf(model) === index);
 }
 
 async function requestPost(model: string, topic: string): Promise<GeneratedPost> {
@@ -63,10 +82,19 @@ async function generateWithRetry(model: string, topic: string): Promise<Generate
       return await requestPost(model, topic);
     } catch (error) {
       lastError = error;
+      const status = getStatus(error);
+
+      console.warn(
+        `Gemini ${model}: ошибка${status ? ` ${status}` : ""} — ${getErrorMessage(error)}`
+      );
+
       if (!isRetryable(error) || attempt === env.GEMINI_MAX_RETRIES) break;
 
       const delay = 1500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 700);
-      console.warn(`Gemini ${model} недоступен. Попытка ${attempt}/${env.GEMINI_MAX_RETRIES}; повтор через ${delay} мс.`);
+      console.warn(
+        `Gemini ${model} недоступен. Попытка ${attempt}/${env.GEMINI_MAX_RETRIES}; ` +
+        `повтор через ${delay} мс.`
+      );
       await sleep(delay);
     }
   }
@@ -75,11 +103,36 @@ async function generateWithRetry(model: string, topic: string): Promise<Generate
 }
 
 export async function generatePost(topic: string): Promise<GeneratedPost> {
+  const models = getModelChain();
+  let lastError: unknown;
+
+  for (let index = 0; index < models.length; index += 1) {
+    const model = models[index];
+
+    try {
+      console.log(`Gemini: генерация через ${model} (${index + 1}/${models.length}).`);
+      return await generateWithRetry(model, topic);
+    } catch (error) {
+      lastError = error;
+
+      const nextModel = models[index + 1];
+      if (!nextModel || !canSwitchModel(error)) break;
+
+      console.warn(`Gemini: переключение с ${model} на резервную модель ${nextModel}.`);
+    }
+  }
+
+  if (!env.DEEPSEEK_API_KEY) {
+    throw lastError ?? new Error("Все модели Gemini недоступны, а DeepSeek не настроен");
+  }
+
+  console.warn("Gemini: все три модели недоступны. Переключение на DeepSeek.");
+
   try {
-    return await generateWithRetry(env.GEMINI_MODEL, topic);
-  } catch (error) {
-    if (!isRetryable(error) || env.GEMINI_FALLBACK_MODEL === env.GEMINI_MODEL) throw error;
-    console.warn(`Переключение с ${env.GEMINI_MODEL} на ${env.GEMINI_FALLBACK_MODEL}.`);
-    return generateWithRetry(env.GEMINI_FALLBACK_MODEL, topic);
+    return await generatePostWithDeepSeek(topic);
+  } catch (deepSeekError) {
+    const geminiMessage = lastError instanceof Error ? lastError.message : String(lastError);
+    const deepSeekMessage = deepSeekError instanceof Error ? deepSeekError.message : String(deepSeekError);
+    throw new Error(`Gemini недоступен: ${geminiMessage}. DeepSeek недоступен: ${deepSeekMessage}`);
   }
 }

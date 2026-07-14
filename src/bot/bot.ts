@@ -46,7 +46,7 @@ async function createAndShowDraft(ctx: any, topic: string, type: ContentType = C
       ctx.chat.id,
       loading.message_id,
       undefined,
-      "⚠️ Gemini временно недоступен. Агент выполнил повторные попытки и попробовал резервную модель. Повтори запрос позже."
+      "⚠️ Gemini временно недоступен. Агент проверил три модели Gemini и резервную сеть DeepSeek. Повтори запрос позже."
     );
   }
 }
@@ -59,7 +59,7 @@ bot.use(async (ctx, next) => {
   await next();
 });
 
-bot.start((ctx) => ctx.reply("Channel OS Dev Agent v0.1 запущен.", mainKeyboard));
+bot.start((ctx) => ctx.reply("Channel OS Dev Agent v0.1.9 запущен.", mainKeyboard));
 bot.command("post", async (ctx) => {
   const topic = ctx.message.text.replace(/^\/post(@\w+)?\s*/i, "").trim();
   if (!topic) return ctx.reply("Использование: /post тема публикации");
