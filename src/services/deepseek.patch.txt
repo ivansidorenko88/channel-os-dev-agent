@@ -1,0 +1,15 @@
+
+Проблема найдена: в архиве нет файла src/services/deepseek.service.ts,
+а src/services/gemini.service.ts умеет переключаться только между двумя
+моделями Gemini.
+
+Сейчас цепочка выглядит так:
+
+gemini -> fallback gemini -> throw error
+
+Из-за этого DeepSeek никогда не вызывается.
+
+Нужно:
+1. Создать src/services/deepseek.service.ts.
+2. После ошибки последней Gemini вызывать DeepSeek.
+3. Добавить переменные DEEPSEEK_API_KEY и DEEPSEEK_MODEL.
